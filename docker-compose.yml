@@ -1,0 +1,37 @@
+version: '3.8'
+services:
+  arangodb:
+    image: arangodb:latest
+    environment:
+      - ARANGO_ROOT_PASSWORD=nT208@
+    ports:
+      - "8529:8529"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "7193:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ArangoDB__Uri=http://arangodb:8529
+      - ArangoDB__Database=ThreatGraphDB
+      - ArangoDB__Username=root
+      - ArangoDB__Password=nT208@
+    depends_on:
+      - arangodb
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=https://threatgraph.me/api/
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      - backend
