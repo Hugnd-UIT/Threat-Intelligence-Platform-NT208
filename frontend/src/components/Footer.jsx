@@ -40,7 +40,6 @@ const MainLayout = () => {
                     <span>© 2026 Threat Intelligence Platform. All rights reserved.</span>
                     <span>Designed by Hưng Nguyễn - UIT</span>
                 </footer>
-
             </div>
         </div>
     );

@@ -1,14 +1,16 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { jwtDecode } from 'jwt-decode'; 
-import MainLayout from './layouts/MainLayout';
-import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
-import UsersManagement from './pages/UsersManagement';
-import AuditLogList from './pages/AuditLogList';
-import SearchPage from './pages/SearchPage/SearchPage';
-import IocManagement from './pages/IocManagement';
-import DataFeeds from './pages/DataFeeds';
 import { useEffect } from 'react';
+
+import MainLayout from './layouts/MainLayout';
+import Login from './pages/Auth';
+import Dashboard from './pages/Dashboard';
+import Search from './pages/Search'; 
+import IocNodes from './pages/IocNodes'; 
+import IocGraph from './pages/IocGraph';
+import IocIngest from './pages/IocIngest'; 
+import Logs from './pages/Logs'; 
+import User from './pages/User'; 
 
 function App() {
   const isTokenValid = () => {
@@ -34,10 +36,10 @@ function App() {
         window.location.href = '/login'; 
       }
     };
-
     window.addEventListener('storage', syncLogout);
     return () => window.removeEventListener('storage', syncLogout);
   }, []);
+
   const getRoleFromToken = () => {
     const token = localStorage.getItem('token');
     if (!token) return null;
@@ -56,32 +58,20 @@ function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         
-        {/* Có Token => Vào khung giao diện chính */}
         <Route path="/" element={isAuthenticated ? <MainLayout /> : <Navigate to="/login" />}>
           <Route index element={<Dashboard />} />
-          <Route path='search' element={<SearchPage/>}/>
-          <Route path="database" element={<IocManagement/>} />
-
-          {/* Kiểm tra Role từ Token */}
-          <Route 
-            path="users" 
-            element={role === 'Admin' ? <UsersManagement /> : <Navigate to='/'/>} 
-          />
-
-          <Route 
-            path="logs" 
-            element={role === 'Admin' ? <AuditLogList /> : <Navigate to='/'/>} 
-          />
-
-          <Route 
-            path="feeds" 
-            element={role === 'Admin' ? <DataFeeds /> : <Navigate to='/'/>} 
-          />
+          <Route path="search" element={<Search />}/>
+          <Route path="database" element={<IocNodes />} />
+          <Route path="ioc-graph" element={<IocGraph />} />
+          <Route path="ioc-ingest" element={role === 'Admin' ? <IocIngest /> : <Navigate to='/'/>} />
+          <Route path="user" element={role === 'Admin' ? <User /> : <Navigate to='/'/>} />
+          <Route path="logs" element={role === 'Admin' ? <Logs /> : <Navigate to='/'/>} />
         </Route>
-        {/* THÊM ĐÚNG DÒNG NÀY VÀO ĐỂ BẮT HẾT LỖI 404 */}
+
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );
 }
+
 export default App;

@@ -1,193 +1,172 @@
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
-using IocNodes.DTOs;
-using IocNodes.Services;
+using backend.DTOs;
+using backend.Services;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
+using System;
 
-namespace IocNodes.Controllers
+namespace backend.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
     public class IocNodesController : ControllerBase
     {
-        private readonly IIocNodeService _service;
+        private readonly IocNodesService _iocNodesService;
 
-        public IocNodesController(IIocNodeService service)
+        public IocNodesController(IocNodesService iocNodesService)
         {
-            _service = service;
+            _iocNodesService = iocNodesService;
         }
 
-        // GET: api/iocnodes?offset=0&limit=50
         [HttpGet]
         [Authorize]        
-        public async Task<IActionResult> GetAll([FromQuery] int offset = 0, [FromQuery] int limit = 50)
+        public async Task<IActionResult> GetAll([FromQuery] int Offset = 0, [FromQuery] int Limit = 50)
         {
-            var result = await _service.GetAllAsync(offset, limit);
-            return Ok(result);
+            var Result = await _iocNodesService.GetAllAsync(Offset, Limit);
+            return Ok(Result);
         }
 
-        // GET: api/iocnodes/{id}
-        [HttpGet("{id}")]
-        public async Task<IActionResult> GetById([FromRoute] string id)
+        [HttpGet("{Id}")]
+        public async Task<IActionResult> GetById([FromRoute] string Id)
         {
-            var result = await _service.GetByIdAsync(id);
-            if (result == null) return NotFound(new { Message = $"Không tìm thấy IOC với ID: {id}" });
-            return Ok(result);
+            var Result = await _iocNodesService.GetByIdAsync(Id);
+            
+            if (Result == null)
+            {
+                return NotFound(new { Message = $"IOC with ID {Id} not found!" });
+            }
+
+            return Ok(Result);
         }
 
-        // POST: api/iocnodes
         [HttpPost]
         [Authorize]
-        public async Task<IActionResult> Create([FromBody] CreateIocNodeRequest request)
+        public async Task<IActionResult> Create([FromBody] CreateIocNodeRequest Request)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
 
             try
             {
-                // Gọi xuống Service để tìm xem Value này đã có trong Database chưa
-                var existingNode = await _service.GetByValueAsync(request.Value);
+                var ExistingNode = await _iocNodesService.GetByValueAsync(Request.Value);
 
-                if (existingNode != null)
+                if (ExistingNode != null)
                 {
-                    // Nếu đã tồn tại, trả về lỗi 409 Conflict cùng với thông tin của Node cũ
                     return StatusCode(409, new
                     {
-                        message = $"Node '{request.Value}' đã tồn tại trong hệ thống!",
-                        source = existingNode.OriginRef,
-                        existingKey = existingNode.Id
+                        Message = $"Node '{Request.Value}' already exists in the system!",
+                        Source = ExistingNode.OriginRef,
+                        ExistingKey = ExistingNode.Id
                     });
                 }
 
-                var currentUser = User.Identity?.Name ?? "Unknown";
-                request.OriginRef = currentUser;
+                var CurrentUser = User.Identity?.Name ?? "Unknown";
+                Request.OriginRef = CurrentUser;
 
-                var result = await _service.CreateAsync(request);
-
-                // Trả về HTTP 201 Created kèm header Location trỏ tới URL của resource vừa tạo
-                return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
+                var Result = await _iocNodesService.CreateAsync(Request);
+                return CreatedAtAction(nameof(GetById), new { id = Result.Id }, Result);
             }
-            catch (Exception ex)
+            catch (Exception ExceptionInstance)
             {
-                return StatusCode(500, new { message = "Lỗi hệ thống khi tạo IOC", error = ex.Message });
+                return StatusCode(500, new { Message = "System error while creating IOC", Error = ExceptionInstance.Message });
             }
         }
 
-        // POST: api/iocnodes/relationship
         [HttpPost("relationship")]
         [Authorize]
-        public async Task<IActionResult> CreateRelationship([FromBody] CreateRelationshipRequest request)
-        {
-            // Kiểm tra xem Frontend có gửi thiếu trường nào trong DTO không
-            if (!ModelState.IsValid) return BadRequest(ModelState);
-
-            try
-            {
-                var success = await _service.CreateRelationshipAsync(request);
-
-                if (success)
-                {
-                    return Ok(new { message = "Tạo liên kết thành công!" });
-                }
-
-                return BadRequest(new { message = "Không thể tạo liên kết. Vui lòng kiểm tra lại Key của 2 Node." });
-            }
-            catch (System.Exception ex)
-            {
-                return StatusCode(500, new { message = $"Lỗi hệ thống: {ex.Message}" });
-            }
-        }
-
-        // PUT: api/iocnodes/{id}
-        [HttpPut("{id}")]
-        [Authorize]
-        public async Task<IActionResult> Update([FromRoute] string id, [FromBody] UpdateIocNodeRequest request)
+        public async Task<IActionResult> CreateRelationship([FromBody] CreateRelationshipRequest Request)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
 
             try
             {
-                var currentUser = User.Identity?.Name;
-                var isAdmin = User.IsInRole("Admin");
-
-                // Lấy IOC để kiểm tra quyền
-                var existingIoc = await _service.GetByIdAsync(id);
-                if (existingIoc == null)
-                    return NotFound(new { Message = $"Không tìm thấy IOC với ID: {id} để update" });
-
-                // Phân quyền sửa
-                if (!isAdmin && existingIoc.OriginRef != currentUser)
-                {
-                    return StatusCode(403, new { message = "Cảnh báo: Bạn không có quyền sửa dữ liệu do người khác tạo!" });
-                }
-
-                // Tiến hành update (giữ nguyên logic gọi service của ông)
-                var result = await _service.UpdateAsync(id, request);
-                return Ok(result);
+                var Success = await _iocNodesService.CreateRelationshipAsync(Request);
+                if (Success) return Ok(new { Message = "Relationship created successfully!" });
+                return BadRequest(new { Message = "Could not create relationship. Please check the Keys of the 2 Nodes." });
             }
-            catch (Exception ex)
+            catch (System.Exception ExceptionInstance)
             {
-                return StatusCode(500, new { message = "Lỗi hệ thống khi cập nhật", error = ex.Message });
+                return StatusCode(500, new { Message = $"System error: {ExceptionInstance.Message}" });
             }
         }
 
-        // DELETE: api/iocnodes/{id}
-        [HttpDelete("{id}")]
+        [HttpPut("{Id}")]
         [Authorize]
-        public async Task<IActionResult> Delete([FromRoute] string id)
+        public async Task<IActionResult> Update([FromRoute] string Id, [FromBody] UpdateIocNodeRequest Request)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+
+            try
+            {
+                var CurrentUser = User.Identity?.Name;
+                var IsAdmin = User.IsInRole("Admin");
+
+                var ExistingIoc = await _iocNodesService.GetByIdAsync(Id);
+                
+                if (ExistingIoc == null) return NotFound(new { Message = $"IOC with ID {Id} not found for update" });
+
+                if (!IsAdmin && ExistingIoc.OriginRef != CurrentUser)
+                {
+                    return StatusCode(403, new { Message = "Warning: You do not have permission to edit data created by others!" });
+                }
+
+                var Result = await _iocNodesService.UpdateAsync(Id, Request);
+                return Ok(Result);
+            }
+            catch (Exception ExceptionInstance)
+            {
+                return StatusCode(500, new { Message = "System error while updating", Error = ExceptionInstance.Message });
+            }
+        }
+
+        [HttpDelete("{Id}")]
+        [Authorize]
+        public async Task<IActionResult> Delete([FromRoute] string Id)
         {
             try
             {
+                var CurrentUser = User.Identity?.Name;
+                var IsAdmin = User.IsInRole("Admin");
 
-                // Lấy thông tin user đang request
-                var currentUser = User.Identity?.Name;
-                var isAdmin = User.IsInRole("Admin");
+                var ExistingIoc = await _iocNodesService.GetByIdAsync(Id);
+                
+                if (ExistingIoc == null) return NotFound(new { Message = "IOC not found!" });
 
-                // Lấy dữ liệu
-                var existingIoc = await _service.GetByIdAsync(id);
-                if (existingIoc == null)
+                if (!IsAdmin && ExistingIoc.OriginRef != CurrentUser)
                 {
-                    return NotFound(new { message = "Không tìm thấy IOC này" });
+                    return StatusCode(403, new { Message = "Warning: You do not have permission to delete data created by others!" });
                 }
 
-                // Phân quyền
-                if (!isAdmin && existingIoc.OriginRef != currentUser)
-                {
-                    return StatusCode(403, new { message = "Cảnh báo: Bạn không có quyền xóa dữ liệu của người khác!" });
-                }
-
-                await _service.DeleteAsync(id);
-                return Ok(new { message = "Xóa IOC thành công!" });
-            }catch (Exception ex)
+                await _iocNodesService.DeleteAsync(Id);
+                return Ok(new { Message = "IOC deleted successfully!" });
+            }
+            catch (Exception ExceptionInstance)
             {
-                return StatusCode(500, new { message = "Lỗi hệ thống", error = ex.Message });
+                return StatusCode(500, new { Message = "System error", Error = ExceptionInstance.Message });
             }
         }
 
-        // Thêm vào IocNodesController.cs
         [HttpDelete("all")]
-        [Authorize] // Chỉ Admin mới được phép gọi API này
+        [Authorize] 
         public async Task<IActionResult> DeleteAll()
         {
             try
             {
-                // Giả sử ông đã thêm phương thức vào Service tương ứng
-                await _service.DeleteAllAsync();
-                return Ok(new { message = "Đã xóa sạch toàn bộ dữ liệu IOC và các mối quan hệ!" });
+                await _iocNodesService.DeleteAllAsync();
+                return Ok(new { Message = "Successfully deleted all IOC data and relationships!" });
             }
-            catch (Exception ex)
+            catch (Exception ExceptionInstance)
             {
-                return StatusCode(500, new { message = ex.Message });
+                return StatusCode(500, new { Message = ExceptionInstance.Message });
             }
         }
 
-        // GET: api/iocnodes/paged?offset=0&limit=50&type=IP&keyword=103
         [HttpGet("paged")]
         [Authorize]
-        public async Task<IActionResult> GetAllPaged([FromQuery] int offset = 0, [FromQuery] int limit = 50, [FromQuery] string? type = null, [FromQuery] string? keyword = null)
+        public async Task<IActionResult> GetAllPaged([FromQuery] int Offset = 0, [FromQuery] int Limit = 50, [FromQuery] string? Type = null, [FromQuery] string? Keyword = null)
         {
-            var result = await _service.GetAllPagedAsync(offset, limit, type, keyword);
-            return Ok(result);
+            var Result = await _iocNodesService.GetAllPagedAsync(Offset, Limit, Type, Keyword);
+            return Ok(Result);
         }
     }
 }

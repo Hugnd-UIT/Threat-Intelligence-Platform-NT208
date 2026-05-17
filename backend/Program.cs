@@ -3,31 +3,32 @@ using ArangoDBNetStandard.Transport.Http;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
-using NT208_Project.Middlewares;
 using Microsoft.OpenApi.Models;
-using IocNodes.Services;
+
+using backend.Middlewares; 
+using backend.Services;
 using backend.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Cấu hình CORS cho React
+// 1. Cấu hình CORS
 builder.Services.AddCors(options => {
     options.AddPolicy("AllowReactApp", policy => {
         policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
     });
 });
 
-// 2. Cấu hình ArangoDB
+// 2. Cấu hình DB
 var arangodUri = builder.Configuration["ArangoDB:Url"];
 var arangoDb = builder.Configuration["ArangoDB:Database"];
 var arangoUser = builder.Configuration["ArangoDB:User"];
 var arangoPassword = builder.Configuration["ArangoDB:Password"];
-var transport = HttpApiTransport.UsingBasicAuth(new Uri(arangodUri), arangoDb, arangoUser, arangoPassword);
+var transport = HttpApiTransport.UsingBasicAuth(new System.Uri(arangodUri), arangoDb, arangoUser, arangoPassword);
 builder.Services.AddSingleton<IArangoDBClient>(new ArangoDBClient(transport));
 
-builder.Services.AddHostedService<NT208_Project.Services.DatabaseInitializerService>();
+builder.Services.AddHostedService<DatabaseInitializerService>();
 
-// 3. Cấu hình JWT Authentication
+// 3. Cấu hình Auth
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options => {
         options.TokenValidationParameters = new TokenValidationParameters {
@@ -38,69 +39,67 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-// ĐĂNG KÝ SWAGGER VÀO HỆ THỐNG
+// ✅ 2 DÒNG QUYẾT ĐỊNH SỰ SỐNG CÒN CỦA API NẰM Ở ĐÂY:
+builder.Services.AddAuthorization(); 
+builder.Services.AddControllers(); 
+
+// 4. Cấu hình Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
-    // Thêm nút Authorize
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
-        Description = "JWT Authorization header dùng scheme Bearer. \r\n\r\n Cú pháp: 'Bearer [khoảng trắng] [Token_của_bạn]'\r\n VD: Bearer eyJhbGciOiJIUzI1...",
+        Description = "JWT Authorization header using Bearer scheme.",
         Name = "Authorization",
         In = ParameterLocation.Header,
         Type = SecuritySchemeType.ApiKey,
         Scheme = "Bearer"
     });
-
-    // Áp dụng ổ khóa cho tất cả các API
     c.AddSecurityRequirement(new OpenApiSecurityRequirement()
     {
         {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
-                },
-                Scheme = "oauth2",
-                Name = "Bearer",
-                In = ParameterLocation.Header,
-            },
-            new List<string>()
+            new OpenApiSecurityScheme { Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }, Scheme = "oauth2", Name = "Bearer", In = ParameterLocation.Header },
+            new System.Collections.Generic.List<string>()
         }
     });
 });
 
-builder.Services.AddControllers();
-// Đăng ký Repository để Controller có thể gọi xuống Database
-builder.Services.AddScoped<IIocNodeRepository, IocNodeRepository>();
+// 5. ĐĂNG KÝ KIẾN TRÚC 3 TẦNG (REPO & SERVICE)
+builder.Services.AddScoped<SystemRepository>();
+builder.Services.AddScoped<SystemService>();
 
-// Đăng ký Service để xử lý logic cho IOC
-builder.Services.AddScoped<IIocNodeService, IocNodeService>();
+builder.Services.AddScoped<LogsRepository>();
+builder.Services.AddScoped<LogsService>();
 
-// Đăng ký HttpClient chuyên dụng cho AlienVault
+builder.Services.AddScoped<SearchRepository>();
+builder.Services.AddScoped<SearchService>();
+
+builder.Services.AddScoped<DashboardRepository>();
+builder.Services.AddScoped<DashboardService>();
+
+builder.Services.AddScoped<UsersRepository>();
+builder.Services.AddScoped<UsersService>();
+builder.Services.AddScoped<AuthService>();
+
+builder.Services.AddScoped<IocGraphsRepository>();
+builder.Services.AddScoped<IocGraphsService>();
+
+builder.Services.AddScoped<IocNodesRepository>();
+builder.Services.AddScoped<IocNodesService>();
+
+builder.Services.AddScoped<IocIngestRepository>();
+builder.Services.AddScoped<IocIngestService>();
+
+// 6. Cấu hình AlienVault Client
 builder.Services.AddHttpClient("AlienVaultClient", client =>
 {
     var baseUrl = builder.Configuration["AlienVault:BaseUrl"];
     var apiKey = builder.Configuration["AlienVault:ApiKey"];
-
-    if (!string.IsNullOrEmpty(baseUrl))
-    {
-        client.BaseAddress = new Uri(baseUrl);
-    }
-
-    // Gắn API Key vào Header cho TẤT CẢ các request đi từ Client này
-    if (!string.IsNullOrEmpty(apiKey))
-    {
-        client.DefaultRequestHeaders.Add("X-OTX-API-KEY", apiKey);
-    }
+    if (!string.IsNullOrEmpty(baseUrl)) client.BaseAddress = new System.Uri(baseUrl);
+    if (!string.IsNullOrEmpty(apiKey)) client.DefaultRequestHeaders.Add("X-OTX-API-KEY", apiKey);
 });
 
-// Đăng ký Service cào dữ liệu
-builder.Services.AddScoped<IDataFeedService, DataFeedService>();
 var app = builder.Build();
-
 
 if (app.Environment.IsDevelopment())
 {
@@ -112,11 +111,9 @@ app.UseCors("AllowReactApp");
 app.UseAuthentication();
 app.UseAuthorization();
 
-// 4. Đăng ký Middleware ghi Log
-app.UseMiddleware<AuditLogMiddleware>();
-
-// 5. Đăng ký Middleware kiểm tra trạng thái user
-app.UseMiddleware<NT208_Project.Middlewares.UserStatusMiddleware>();
+// Đăng ký Middleware
+app.UseMiddleware<LogsMiddleware>();
+app.UseMiddleware<UserMiddleware>();
 
 app.MapControllers();
 app.Run();

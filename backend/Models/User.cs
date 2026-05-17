@@ -1,16 +1,13 @@
-﻿using System.Text.Json.Serialization;
-
-namespace backend.Models
+﻿namespace backend.Models
 {
     public class User
     {
-        [JsonPropertyName("_key")]
-        public string? Key { get; set; } 
-
-        public string Username { get; set; } = string.Empty;
-        public string PasswordHash { get; set; } = string.Empty;
-        public string FullName { get; set; } = string.Empty;
-        public string Role { get; set; } = "Analyst"; 
-        public bool IsActive { get; set; } = true;
+        public string? _key { get; set; }
+        public string? _id { get; set; }
+        public string? _rev { get; set; }
+        public string username { get; set; } = string.Empty;
+        public string password { get; set; } = string.Empty;
+        public string? role { get; set; }
+        public bool? isLocked { get; set; }
     }
 }

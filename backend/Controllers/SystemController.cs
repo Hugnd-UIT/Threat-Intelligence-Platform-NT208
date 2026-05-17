@@ -1,23 +1,36 @@
-﻿using ArangoDBNetStandard;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
+using backend.Services;
+using System;
+using System.Threading.Tasks;
 
-namespace NT208_Project.Controllers
+namespace backend.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
     public class SystemController : ControllerBase
     {
-        private readonly IArangoDBClient _db;
-        public SystemController(IArangoDBClient db) { _db = db; }
+        private readonly SystemService _systemService;
+
+        public SystemController(SystemService systemService) 
+        { 
+            _systemService = systemService; 
+        }
 
         [HttpGet("health-check")]
         public async Task<IActionResult> HealthCheck()
         {
-            try {
-                var dbInfo = await _db.Database.GetCurrentDatabaseInfoAsync();
-                return Ok(new { Status = "Healthy", ActiveDatabase = dbInfo.Result.Name, Timestamp = DateTime.UtcNow });
-            } catch (Exception ex) {
-                return StatusCode(500, new { Status = "Dead", Error = ex.Message });
+            try 
+            {
+                var Result = await _systemService.GetHealthStatusAsync();
+                return Ok(Result);
+            } 
+            catch (Exception ExceptionInstance) 
+            {
+                return StatusCode(500, new 
+                { 
+                    Status = "Dead", 
+                    Error = ExceptionInstance.Message 
+                });
             }
         }
     }

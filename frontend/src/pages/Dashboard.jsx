@@ -26,94 +26,117 @@ const Dashboard = () => {
             try {
                 const res = await axiosClient.get('/Dashboard/stats');
                 
-                // Đã sửa lại phần gán dữ liệu để tránh lỗi do API trả về sai định dạng
                 setStats({
                     totalUsers: res.data.totalUsers ?? res.data.TotalUsers ?? 0,
                     totalLogs: res.data.totalLogs ?? res.data.TotalLogs ?? 0,
                     totalIocs: res.data.totalIocs ?? res.data.TotalIocs ?? 0,
                     iocsToday: res.data.iocsToday ?? res.data.IocsToday ?? 0,
                     totalEdges: res.data.totalEdges ?? res.data.TotalEdges ?? 0,
-                    topIocs: res.data.topIocs ?? res.data.TopIocs ?? []
-                });
-
-                const iocRes = await axiosClient.get('/iocnodes/paged?limit=1000');
-                const iocList = iocRes.data?.items || [];
-                const counts = { IP: 0, Domain: 0, Hash: 0 };
-                
-                iocList.forEach(i => {
-                    const type = i.type || i.Type;
-                    if (type === 'IP') counts.IP++;
-                    else if (type === 'Domain') counts.Domain++;
-                    else counts.Hash++;
+                    topIocs: Array.isArray(res.data.topIocs) ? res.data.topIocs : (res.data.TopIocs || [])
                 });
 
                 setChartData({
-                    labels: ['IP', 'Domain', 'Hash'],
-                    datasets: [{
-                        data: [counts.IP, counts.Domain, counts.Hash],
-                        backgroundColor: ['#ef4444', '#3b82f6', '#f59e0b'],
-                        hoverOffset: 20
-                    }]
+                    labels: ['Users', 'System Logs', 'IOC Nodes', 'Relationships (Edges)'],
+                    datasets: [
+                        {
+                            data: [
+                                res.data.totalUsers ?? res.data.TotalUsers ?? 0, 
+                                res.data.totalLogs ?? res.data.TotalLogs ?? 0, 
+                                res.data.totalIocs ?? res.data.TotalIocs ?? 0, 
+                                res.data.totalEdges ?? res.data.TotalEdges ?? 0
+                            ],
+                            backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'],
+                            borderColor: '#1e293b',
+                            borderWidth: 2,
+                        },
+                    ],
                 });
-            } catch (err) { console.error(err); }
+            } catch (error) {
+                console.error('Error fetching dashboard stats:', error);
+            }
         };
+
         fetchData();
     }, []);
 
-// Hàm để xác định màu sắc dựa trên loại IOC
-const getTypeColor = (type) => {
-        if (type === 'IP') return '#ef4444';
-        if (type === 'Domain') return '#3b82f6';
-        return '#f59e0b'; 
-    };
-    
-    
     return (
-        <div style={{ color: '#fff', padding: '20px' }}>
-            <h2>HỆ THỐNG GIÁM SÁT IOC</h2>
-           {userRole === 'Admin' && (
-                <div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
-                    <div style={adminCardStyle}>Users: {stats.totalUsers}</div>
-                    <div style={adminCardStyle}>Logs: {stats.totalLogs}</div>
-                </div>
-            )}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px' }}>
-                <div style={userCardStyle}>Tổng IOC: {stats.totalIocs}</div>
-                <div style={userCardStyle}>Thêm hôm nay: {stats.iocsToday}</div>
-                <div style={userCardStyle}>Edges: {stats.totalEdges}</div>
+        <div style={{ backgroundColor: '#0f172a', padding: '25px', borderRadius: '12px', minHeight: '80vh' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+                <h2 style={{ color: '#fff', margin: 0 }}>📊 SYSTEM OVERVIEW</h2>
+                <span style={{ backgroundColor: '#1e293b', padding: '8px 16px', borderRadius: '20px', color: '#94a3b8', fontSize: '0.9rem', border: '1px solid #334155' }}>
+                    Role: <strong style={{ color: userRole === 'Admin' ? '#fca5a5' : '#93c5fd' }}>{userRole || 'User'}</strong>
+                </span>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px', marginTop: '30px' }}>
+            <div style={{ display: 'flex', gap: '20px', marginBottom: '30px', flexWrap: 'wrap' }}>
+                <div style={userCardStyle}>
+                    <div style={{ color: '#94a3b8', fontSize: '1rem', marginBottom: '10px' }}>Total Users</div>
+                    <div style={{ color: '#3b82f6', fontSize: '2.5rem' }}>{stats.totalUsers}</div>
+                </div>
+                <div style={userCardStyle}>
+                    <div style={{ color: '#94a3b8', fontSize: '1rem', marginBottom: '10px' }}>System Logs</div>
+                    <div style={{ color: '#10b981', fontSize: '2.5rem' }}>{stats.totalLogs}</div>
+                </div>
+                <div style={adminCardStyle}>
+                    <div style={{ color: '#cbd5e1', fontSize: '1.1rem', marginBottom: '10px' }}>Collected IOCs</div>
+                    <div style={{ color: '#fff', fontSize: '3rem', fontWeight: '900' }}>{stats.totalIocs}</div>
+                </div>
+                <div style={adminCardStyle}>
+                    <div style={{ color: '#cbd5e1', fontSize: '1.1rem', marginBottom: '10px' }}>Today's IOCs</div>
+                    <div style={{ color: '#f59e0b', fontSize: '3rem', fontWeight: '900' }}>+{stats.iocsToday}</div>
+                </div>
+                <div style={adminCardStyle}>
+                    <div style={{ color: '#cbd5e1', fontSize: '1.1rem', marginBottom: '10px' }}>Total Edges</div>
+                    <div style={{ color: '#8b5cf6', fontSize: '3rem', fontWeight: '900' }}>{stats.totalEdges}</div>
+                </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '25px', flexWrap: 'wrap' }}>
                 <div style={chartBoxStyle}>
-                    <h3>Tỉ lệ mã độc</h3>
-                    <div style={{ height: '250px' }}>
-                        {chartData && <Pie data={chartData} options={{ maintainAspectRatio: false }} />}
+                    <h3 style={{ color: '#e2e8f0', marginTop: 0, textAlign: 'center', marginBottom: '20px' }}>Data Distribution</h3>
+                    <div style={{ width: '100%', height: '300px', display: 'flex', justifyContent: 'center' }}>
+                        {chartData ? (
+                            <Pie 
+                                data={chartData} 
+                                options={{
+                                    responsive: true,
+                                    maintainAspectRatio: false,
+                                    plugins: { legend: { position: 'bottom', labels: { color: '#cbd5e1' } } }
+                                }} 
+                            />
+                        ) : (
+                            <p style={{ color: '#64748b' }}>Loading chart...</p>
+                        )}
                     </div>
                 </div>
 
-                <div style={chartBoxStyle}>
-                    <h3>Bảng Xếp Hạng IOC (Top 10)</h3>
-                    <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
+                <div style={tableBoxStyle}>
+                    <h3 style={{ color: '#fca5a5', marginTop: 0, borderBottom: '1px solid #334155', paddingBottom: '15px' }}>
+                        🔥 TOP 10 MOST DANGEROUS IOCs
+                    </h3>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', color: '#e2e8f0' }}>
                         <thead>
-                            <tr style={{ borderBottom: '1px solid #334155' }}>
-                                <th style={{ padding: '10px 0' }}>Loại</th>
-                                <th style={{ padding: '10px 0' }}>Giá trị</th>
-                                <th style={{ padding: '10px 0' }}>Nguồn</th>
-                                <th style={{ padding: '10px 0' }}>Điểm</th>
+                            <tr style={{ borderBottom: '1px solid #334155', textAlign: 'left', color: '#94a3b8' }}>
+                                <th style={{ padding: '10px 0' }}>Type</th>
+                                <th style={{ padding: '10px 0' }}>Value</th>
+                                <th style={{ padding: '10px 0' }}>Source</th>
+                                <th style={{ padding: '10px 0' }}>Risk Score</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {stats.topIocs && stats.topIocs.length > 0 ? (
-                                stats.topIocs.map((ioc, i) => {
-                                    const iocType = ioc.type || ioc.Type;
-                                    return (                             
-                                        <tr key={i} onClick={() => navigate(`/search?query=${ioc.value || ioc.Value}`)} style={{ cursor: 'pointer', borderBottom: '1px solid #1e293b' }}>
+                            {stats.topIocs.length > 0 ? (
+                                stats.topIocs.map((ioc, index) => {
+                                    return (
+                                        <tr 
+                                            key={ioc._key || ioc.id || index} 
+                                            onClick={() => navigate(`/search`)}
+                                            style={{ borderBottom: '1px solid #1e293b', cursor: 'pointer', transition: '0.2s' }}
+                                            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1e293b'}
+                                            onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                        >
                                             <td style={{ padding: '10px 0' }}>
-                                                <span style={{
-                                                    background: getTypeColor(iocType),
-                                                    padding: '4px 8px', borderRadius: '4px', fontSize: '0.85rem', fontWeight: 'bold'
-                                                }}>
-                                                    {iocType}
+                                                <span style={{ backgroundColor: '#0f172a', padding: '4px 8px', borderRadius: '4px', border: '1px solid #334155', fontSize: '0.85rem' }}>
+                                                    {ioc.type || ioc.Type}
                                                 </span>
                                             </td>
                                             <td style={{ padding: '10px 0', wordBreak: 'break-all', paddingRight: '10px' }}>{ioc.value || ioc.Value}</td>
@@ -125,7 +148,7 @@ const getTypeColor = (type) => {
                             ) : (
                                 <tr>
                                     <td colSpan="4" style={{ textAlign: 'center', color: '#94a3b8', padding: '20px 0' }}>
-                                        Chưa có dữ liệu IOC
+                                        No data available
                                     </td>
                                 </tr>
                             )}
@@ -139,6 +162,7 @@ const getTypeColor = (type) => {
 
 const adminCardStyle = { background: '#1e293b', padding: '20px', borderRadius: '10px', flex: 1, borderLeft: '5px solid #3b82f6' };
 const userCardStyle = { background: '#0f172a', padding: '30px', borderRadius: '12px', fontSize: '1.2rem', fontWeight: 'bold', border: '1px solid #334155' };
-const chartBoxStyle = { background: '#0f172a', padding: '20px', borderRadius: '15px' };
+const chartBoxStyle = { background: '#1e293b', padding: '25px', borderRadius: '12px', flex: 1, minWidth: '300px', border: '1px solid #334155' };
+const tableBoxStyle = { background: '#1e293b', padding: '25px', borderRadius: '12px', flex: 2, minWidth: '400px', border: '1px solid #334155' };
 
 export default Dashboard;

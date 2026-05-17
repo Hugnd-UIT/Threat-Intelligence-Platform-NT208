@@ -1,73 +1,48 @@
-﻿using ArangoDBNetStandard;
-using ArangoDBNetStandard.CursorApi.Models;
-using backend.Models;
-using Microsoft.AspNetCore.Http.HttpResults;
+﻿using backend.Models;
 using Microsoft.AspNetCore.Mvc;
-using NT208_Project.Controllers;
+using backend.Services;
 using Microsoft.AspNetCore.Authorization;
-namespace NT208_Project.Controllers
+using System;
+using System.Threading.Tasks;
+
+namespace backend.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
     [Authorize]
     public class SearchController : ControllerBase
     {
-        private readonly IArangoDBClient dbClient;
+        private readonly SearchService _searchService;
 
-        public SearchController(IArangoDBClient dbclient)
+        public SearchController(SearchService searchService)
         {
-            dbClient = dbclient;
+            _searchService = searchService;
         }
 
-        // API sẽ tìm từ khoá. Link gọi : Get api/search/{keyword}
-        [HttpGet("{keyword}")]
-        public async Task<IActionResult> GlobalSearch(string keyword)
+        [HttpGet("{Keyword}")]
+        public async Task<IActionResult> GlobalSearch(string Keyword)
         {
             try
             {
-                // Phân biệt IP, Domain, Hash
-                string Type = "Unknown";
-                if (System.Text.RegularExpressions.Regex.IsMatch(keyword, @"^(\d{1,3}\.){3}\d{1,3}$"))
-                    Type = "IP";
-                else if (keyword.Contains(".") && keyword.Length > 3)
-                    Type = "Domain";
-                else if (keyword.Length == 32 || keyword.Length == 64)
-                    Type = "Hash";
+                var Result = await _searchService.SearchGlobalAsync(Keyword);
 
-                // Truy Vấn
-                string Querry = @"
-                    FOR node IN IocNodes
-                    FILTER node.Value == @keyword
-                    OR LIKE(node.Value, CONCAT('%', @keyword, '%'),true)
-                    SORT node.RiskScore DESC
-                    LIMIT 1
-                    RETURN node
-                ";
-
-                var bindVars = new Dictionary<string, object>
+                if (Result == null)
                 {
-                    { "keyword", keyword }
-                };
-
-                var response = await dbClient.Cursor.PostCursorAsync<IocNode>(
-                    new PostCursorBody
-                    {
-                        Query = Querry,
-                        BindVars = bindVars
-                    }
-                );
-
-                var result = response.Result.FirstOrDefault();
-
-                if(result == null)
-                {
-                    return NotFound(new { message = "Không tìm thấy dấu vết mã độc!" });
+                    return NotFound(new 
+                    { 
+                        Message = "Malware traces not found!" 
+                    });
                 }
 
-                return Ok(result);
-            }catch(Exception ex)
+                return Ok(Result);
+            }
+            catch (Exception ExceptionInstance)
             {
-                return StatusCode(500, new { message = "Lỗi hệ thống khi tra cứu", error = ex.Message });
+                return StatusCode(500, new 
+                { 
+                    Message = "System error during lookup", 
+                    Error = ExceptionInstance.Message 
+                });
             }
         }
     }
